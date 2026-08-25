@@ -2,1051 +2,419 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>灰燼中的迴音 | 雙模沉浸投影系統</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>純白凝視：無盡飄零 | 極致沈浸系統 (WebGL引擎)</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- 引入 WebGL 引擎 Three.js 解決效能瓶頸 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- 更改為引入 Noto Serif TC (明體) -->
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Noto+Serif+TC:wght@300;500;700&display=swap" rel="stylesheet">
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@200;300;400;500;700&display=swap');
-        
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
-            overflow: hidden; background-color: #000;
+            background-color: #f8f8f8;
+            overflow: hidden;
+            /* 更改字體設定為明體 */
             font-family: 'Noto Serif TC', serif;
-            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-            touch-action: none; overscroll-behavior: none;
+            user-select: none;
+            cursor: none; 
         }
 
-        /* 渲染層級設定 */
-        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        #fog-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; opacity: 0.65; }
-        #interaction-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
-        #shatter-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; display: none; }
-        
-        /* 視覺特效層 */
+        /* 啟動畫面 */
+        #standby-screen {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 100; background-color: #ffffff;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #111; cursor: pointer; transition: opacity 1.5s ease;
+            font-family: 'Courier Prime', monospace;
+        }
+
+        /* 3D WebGL 畫布容器 */
+        #scene-container {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 10;
+        }
+
+        /* 視覺氛圍層 (白化) */
         #vignette {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 5; pointer-events: none;
-            background: radial-gradient(circle, transparent 30%, rgba(0,0,0,0.9) 100%);
-            transition: background 1.5s ease;
-        }
-        #flash {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 8; pointer-events: none; background-color: #fff; opacity: 0;
-        }
-        #blackout-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 9; pointer-events: none; background-color: #000; opacity: 1;
-            transition: opacity 3s ease;
-        }
-        #finale-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10; pointer-events: none;
-            background: radial-gradient(circle, rgba(15,10,25,0.4) 0%, rgba(0,0,0,1) 100%);
-            opacity: 0; transition: opacity 5s cubic-bezier(0.25, 1, 0.5, 1);
+            z-index: 20; pointer-events: none;
+            background: radial-gradient(circle at center, transparent 20%, rgba(255,255,255,0.98) 100%);
         }
 
-        /* 劇場投影詩意旁白字幕 */
-        #projection-subtitles {
+        #scanlines {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.04) 51%);
+            background-size: 100% 4px;
+            z-index: 25; pointer-events: none; opacity: 0.8;
+        }
+
+        #noise {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+            opacity: 0.06; z-index: 26; pointer-events: none; mix-blend-mode: multiply;
+        }
+
+        /* 文字層 */
+        #text-layer {
             position: absolute;
-            top: 45%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%;
-            z-index: 6;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
             pointer-events: none;
+        }
+
+        .text-content {
+            font-size: 8vw;
+            /* 調整文字權重，配合明體的優雅感 */
+            font-weight: 700; 
+            letter-spacing: 0.2em;
+            color: #050505;
+            line-height: 1.4;
+            white-space: pre-wrap;
             text-align: center;
+            mix-blend-mode: multiply;
+            text-shadow: 0 10px 30px rgba(0,0,0,0.1), 0 0 50px rgba(200, 0, 0, 0.2);
             opacity: 0;
-            transition: opacity 2s ease, transform 2s ease;
+            will-change: transform, opacity, filter;
         }
-        .subtitle-text {
-            font-size: 3rem;
-            font-weight: 300;
-            letter-spacing: 0.4em;
-            color: rgba(255, 255, 255, 0.85);
-            text-shadow: 0 0 20px rgba(255, 255, 255, 0.3), 0 0 40px rgba(255, 255, 255, 0.1);
-            line-height: 2;
-        }
-
-        /* 動態心跳脈動 */
-        @keyframes heartbeat-pulse {
-            0% { background: radial-gradient(circle, transparent 30%, rgba(0,0,0,0.95) 100%); }
-            50% { background: radial-gradient(circle, rgba(40,0,0,0.2) 20%, rgba(0,0,0,0.97) 100%); }
-            100% { background: radial-gradient(circle, transparent 30%, rgba(0,0,0,0.95) 100%); }
-        }
-        .pulse-active {
-            animation: heartbeat-pulse 1.2s infinite ease-in-out;
-        }
-
-        /* 毛玻璃導播控制台 */
-        .glass-panel {
-            background: rgba(15, 15, 20, 0.75);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px rgba(255, 255, 255, 0.1) solid;
+        
+        #hotkey-hint {
+            position: fixed; bottom: 20px; right: 20px; z-index: 99;
+            color: rgba(0,0,0,0.2); font-size: 10px; font-family: monospace;
         }
     </style>
 </head>
-<body class="relative">
+<body>
 
-    <!-- 啟動模式選擇畫面 -->
-    <div id="mode-selector" class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-[#050508] text-white p-6 transition-opacity duration-1000">
-        <div class="max-w-4xl text-center mb-12">
-            <h1 class="text-4xl md:text-5xl font-extralight tracking-[0.3em] mb-4 text-gray-200">灰燼中的迴音</h1>
-            <p class="text-sm md:text-base font-light tracking-[0.2em] text-gray-500">Echoes in the Ashes — 雙模沉浸控制系統</p>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
-            <!-- 手機模式卡片 -->
-            <button id="btn-select-mobile" class="group flex flex-col items-center p-8 rounded-2xl glass-panel hover:bg-white/5 transition-all duration-500 transform hover:-translate-y-1 text-left">
-                <div class="w-16 h-16 rounded-full border border-white/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                    <svg class="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                </div>
-                <h3 class="text-xl font-light tracking-[0.2em] mb-3 text-white">觀眾手機體驗模式</h3>
-                <p class="text-xs text-gray-400 leading-relaxed font-light">適合觀眾使用手機在掌心互動。包含手動擦拭、螢幕碎裂互動、陀螺儀/觸控與個人耳機音樂體驗。</p>
-            </button>
-
-            <!-- 投影模式卡片 -->
-            <button id="btn-select-projection" class="group flex flex-col items-center p-8 rounded-2xl glass-panel hover:bg-white/5 transition-all duration-500 transform hover:-translate-y-1 text-left border-cyan-500/30">
-                <div class="w-16 h-16 rounded-full border border-cyan-500/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500 bg-cyan-950/20">
-                    <svg class="w-8 h-8 text-cyan-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                </div>
-                <h3 class="text-xl font-light tracking-[0.2em] mb-3 text-cyan-300">劇場巨幕投影模式</h3>
-                <p class="text-xs text-cyan-100/50 leading-relaxed font-light">無任何操作提示按鈕，純淨滿版大畫面。可透過後台導播鍵盤或懸浮面板，同步控場並投影動態背景與詩意字幕。</p>
-            </button>
-        </div>
-        
-        <div class="mt-16 text-xs text-gray-600 font-light tracking-wider">
-            建議使用 Chrome 或 Safari 瀏覽器以獲得最佳效能
-        </div>
+    <div id="standby-screen">
+        <h1 class="text-3xl font-bold tracking-[0.5em] mb-4 text-black">WHITE ROOM PROTOCOL</h1>
+        <p class="text-xs text-red-600 font-bold tracking-widest animate-pulse">[ 點擊任意處釋放檔案 ]</p>
+        <p id="data-status" class="text-[10px] text-gray-400 mt-8 tracking-wider">正在載入系統資料...</p>
     </div>
 
-    <!-- 導播懸浮控制台 (投影模式專用，可隨時按 D 鍵隱藏/顯示) -->
-    <div id="director-panel" class="fixed bottom-6 right-6 z-[90] w-80 rounded-2xl glass-panel p-5 text-white shadow-2xl transition-all duration-500 translate-y-2 opacity-0 pointer-events-none">
-        <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
-            <div class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse"></span>
-                <span class="text-xs tracking-[0.15em] font-medium text-cyan-300">劇場導播控制台</span>
-            </div>
-            <span class="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded">快速鍵: D 隱藏</span>
-        </div>
-
-        <div class="space-y-4">
-            <!-- 階段切換按鈕組 -->
-            <div>
-                <label class="text-[11px] text-gray-400 tracking-wider block mb-2">劇場階段控制</label>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                    <button onclick="triggerPhase(1)" id="pbtn-1" class="py-2 px-3 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition text-left">
-                        1. 混沌灰燼 <span class="text-[9px] text-cyan-400 block mt-0.5">鍵盤 [1]</span>
-                    </button>
-                    <button onclick="triggerPhase(2)" id="pbtn-2" class="py-2 px-3 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition text-left">
-                        2. 共鳴心跳 <span class="text-[9px] text-cyan-400 block mt-0.5">鍵盤 [2]</span>
-                    </button>
-                    <button onclick="triggerPhase(3)" id="pbtn-3" class="py-2 px-3 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition text-left">
-                        3. 碎裂崩解 <span class="text-[9px] text-cyan-400 block mt-0.5">鍵盤 [3]</span>
-                    </button>
-                    <button onclick="triggerPhase(4)" id="pbtn-4" class="py-2 px-3 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition text-left">
-                        4. 星塵重生 <span class="text-[9px] text-cyan-400 block mt-0.5">鍵盤 [4]</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- 音效與字幕快捷 -->
-            <div class="border-t border-white/5 pt-3 space-y-2 text-xs">
-                <div class="flex items-center justify-between">
-                    <span class="text-gray-400">大螢幕詩意字幕</span>
-                    <button id="btn-toggle-subtitles" class="px-3 py-1 rounded bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-900/40 transition">
-                        顯示 [T]
-                    </button>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-gray-400">背景環境音效</span>
-                    <button id="btn-toggle-audio" class="px-3 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition">
-                        開啟 [M]
-                    </button>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-gray-400">全螢幕投影</span>
-                    <button onclick="toggleFullscreen()" class="px-3 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition">
-                        切換 [F]
-                    </button>
-                </div>
-            </div>
-
-            <!-- 當前狀態顯示 -->
-            <div class="bg-black/30 p-2 rounded text-[10px] text-gray-400 flex justify-between items-center">
-                <span>當前階段: <strong id="director-state-label" class="text-cyan-400">等待開始</strong></span>
-                <span id="director-fps">FPS: --</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- 劇場大螢幕字幕層 -->
-    <div id="projection-subtitles">
-        <div id="subtitle-content" class="subtitle-text"></div>
-    </div>
-
-    <!-- 手機模式下的引導 UI (在投影模式下會完全被拿掉) -->
-    <div id="mobile-ui" class="hidden absolute inset-0 z-40 pointer-events-none flex flex-col justify-between p-8 text-white">
-        <!-- 頂部提示 -->
-        <div id="top-indicator" class="w-full text-center transition-opacity duration-1000 opacity-0 mt-4">
-            <h2 id="phase-title" class="text-lg font-light tracking-[0.3em] text-gray-200"></h2>
-            <p id="phase-desc" class="text-xs font-light tracking-[0.15em] text-gray-500 mt-1"></p>
-        </div>
-
-        <!-- 底部互動按鈕與指示 -->
-        <div class="w-full flex flex-col items-center gap-6 mt-auto">
-            <!-- 觸碰提示圖示 -->
-            <div id="touch-guide" class="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center animate-pulse transition-opacity duration-1000 opacity-0">
-                <div class="w-2 h-2 rounded-full bg-white"></div>
-            </div>
-            
-            <!-- 手動啟動按鈕 -->
-            <button id="start-btn" class="pointer-events-auto px-8 py-3.5 rounded-full border border-white/20 bg-black/40 text-xs tracking-[0.3em] text-gray-300 hover:bg-white/10 hover:border-white/40 active:scale-95 transition-all duration-300">
-                開啟迴音
-            </button>
-        </div>
-    </div>
-
-    <!-- 畫布與視覺渲染圖層 -->
-    <div id="canvas-container"></div>
-    <canvas id="fog-canvas"></canvas>
-    <canvas id="interaction-canvas"></canvas>
-    <canvas id="shatter-layer"></canvas>
+    <div id="scene-container"></div>
+    
+    <div id="scanlines"></div>
+    <div id="noise"></div>
     <div id="vignette"></div>
-    <div id="flash"></div>
-    <div id="blackout-layer"></div>
-    <div id="finale-layer"></div>
+    
+    <div id="text-layer">
+        <div id="text-content" class="text-content"></div>
+    </div>
+    
+    <div id="hotkey-hint">全螢幕: F</div>
+    <audio id="bgm" src="1.mp3" loop></audio>
 
-    <!-- 音效資源 -->
-    <audio id="bgm" src="https://assets.mixkit.co/music/preview/mixkit-deep-urban-solitude-913.mp3" loop prefetch></audio>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    <script>
-        // 系統運作模式控制
-        let isProjectionMode = false;
-        let isMuted = true; // 投影模式預設靜音，可由控制台開啟
-        let subtitlesEnabled = true;
-
-        // 詩意旁白文本資料庫 (用於投影幕烘托氣氛)
-        const projectionScript = {
-            1: [
-                "我們，在燃盡的廢墟中醒來。",
-                "空中漂浮著無聲的遺忘之灰。"
-            ],
-            2: [
-                "直到，黑暗深處傳來一聲微弱的震動。",
-                "那是迴音...在試圖尋找同類的心跳。"
-            ],
-            3: [
-                "這世界開始劇烈碎裂、崩解。",
-                "但唯有徹底的破碎，光芒才能照進來！"
-            ],
-            4: [
-                "在星塵的終點，我們終將重逢。",
-                "迴音化作了恆星，我們重獲新生。"
-            ]
+        const firebaseConfig = {
+            apiKey: "AIzaSyD8ERvnrdHJzTAr7xDIdXuiqZ9o7d_wW_U",
+            authDomain: "checkpoint-system-ee6d7.firebaseapp.com",
+            projectId: "checkpoint-system-ee6d7",
+            storageBucket: "checkpoint-system-ee6d7.firebasestorage.app",
+            messagingSenderId: "188995102122",
+            appId: "1:188995102122:web:6d8ef558b8c9f6262bf7d3"
         };
-        let subtitleInterval = null;
-
-        // 初始化模式選擇
-        document.getElementById('btn-select-mobile').addEventListener('click', () => {
-            isProjectionMode = false;
-            isMuted = false;
-            document.getElementById('mobile-ui').classList.remove('hidden');
-            startSystem();
-        });
-
-        document.getElementById('btn-select-projection').addEventListener('click', () => {
-            isProjectionMode = true;
-            isMuted = true; // 投影預設靜音 (可按 M 鍵開啟，以便配合現場音響)
-            document.getElementById('director-panel').classList.remove('pointer-events-none');
-            document.getElementById('director-panel').style.opacity = '1';
-            startSystem();
-        });
-
-        function startSystem() {
-            // 隱藏模式選單
-            const selector = document.getElementById('mode-selector');
-            selector.style.opacity = '0';
-            setTimeout(() => selector.remove(), 1000);
-
-            // 淡出開場黑幕
-            setTimeout(() => {
-                document.getElementById('blackout-layer').style.opacity = '0';
-            }, 500);
-
-            // 如果是投影模式，直接自動開始
-            if (isProjectionMode) {
-                setTimeout(() => {
-                    triggerPhase(1);
-                    if (!isMuted) playBGM();
-                }, 1000);
-            }
-        }
-
-        // --- 全螢幕控制 ---
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`無法開啟全螢幕: ${err.message}`);
-                });
-            } else {
-                document.exitFullscreen();
-            }
-        }
-
-        // --- 投影詩意旁白撥放器 ---
-        let currentSubtitleIdx = 0;
-        function playSubtitlesForPhase(phase) {
-            clearInterval(subtitleInterval);
-            const subContainer = document.getElementById('projection-subtitles');
-            const subContent = document.getElementById('subtitle-content');
-            
-            if (!subtitlesEnabled || !projectionScript[phase]) {
-                subContainer.style.opacity = '0';
-                return;
-            }
-
-            const sentences = projectionScript[phase];
-            currentSubtitleIdx = 0;
-
-            const displayNextSentence = () => {
-                if (currentSubtitleIdx >= sentences.length) {
-                    // 循環播放該階段字幕
-                    currentSubtitleIdx = 0;
-                }
-                
-                subContainer.style.opacity = '0';
-                subContainer.style.transform = 'translate(-50%, -46%)';
-                
-                setTimeout(() => {
-                    subContent.innerHTML = sentences[currentSubtitleIdx];
-                    subContainer.style.opacity = '1';
-                    subContainer.style.transform = 'translate(-50%, -50%)';
-                    currentSubtitleIdx++;
-                }, 1500);
-            };
-
-            displayNextSentence();
-            subtitleInterval = setInterval(displayNextSentence, 8000); // 每 8 秒切換一句
-        }
-
-        // 鍵盤與導播操作監聽
-        window.addEventListener('keydown', (e) => {
-            // 只有在選擇完模式後才反應
-            if (document.getElementById('mode-selector') === null) {
-                if (e.key === '1') triggerPhase(1);
-                if (e.key === '2') triggerPhase(2);
-                if (e.key === '3') triggerPhase(3);
-                if (e.key === '4') triggerPhase(4);
-                if (e.key === 'Space' || e.key === ' ') {
-                    e.preventDefault();
-                    let next = currentPhase + 1;
-                    if (next > 4) next = 1;
-                    triggerPhase(next);
-                }
-                if (e.key === 'd' || e.key === 'D') {
-                    // 顯示/隱藏導播懸浮控制台
-                    const panel = document.getElementById('director-panel');
-                    if (panel.style.opacity === '1') {
-                        panel.style.opacity = '0';
-                        panel.classList.add('pointer-events-none');
-                    } else {
-                        panel.classList.remove('pointer-events-none');
-                        panel.style.opacity = '1';
-                    }
-                }
-                if (e.key === 't' || e.key === 'T') {
-                    toggleSubtitles();
-                }
-                if (e.key === 'm' || e.key === 'M') {
-                    toggleAudio();
-                }
-                if (e.key === 'f' || e.key === 'F') {
-                    toggleFullscreen();
-                }
-            }
-        });
-
-        // 介面按鈕綁定
-        document.getElementById('btn-toggle-subtitles').addEventListener('click', toggleSubtitles);
-        document.getElementById('btn-toggle-audio').addEventListener('click', toggleAudio);
-
-        function toggleSubtitles() {
-            subtitlesEnabled = !subtitlesEnabled;
-            const btn = document.getElementById('btn-toggle-subtitles');
-            const subContainer = document.getElementById('projection-subtitles');
-            if (subtitlesEnabled) {
-                btn.innerText = "顯示 [T]";
-                btn.className = "px-3 py-1 rounded bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-900/40 transition";
-                playSubtitlesForPhase(currentPhase);
-            } else {
-                btn.innerText = "隱藏 [T]";
-                btn.className = "px-3 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition";
-                subContainer.style.opacity = '0';
-                clearInterval(subtitleInterval);
-            }
-        }
-
-        function toggleAudio() {
-            isMuted = !isMuted;
-            const btn = document.getElementById('btn-toggle-audio');
-            if (!isMuted) {
-                btn.innerText = "開啟 [M]";
-                btn.className = "px-3 py-1 rounded bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/40 transition";
-                
-                // 解鎖音效並播放
-                Tone.start();
-                playBGM();
-                if (typeof Tone !== 'undefined' && currentPhase === 2) {
-                    setHeartbeat(1500);
-                }
-            } else {
-                btn.innerText = "靜音 [M]";
-                btn.className = "px-3 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition";
-                bgm.pause();
-                stopHeartbeat();
-            }
-        }
-
-        function playBGM() {
-            try {
-                bgm.volume = 0;
-                bgm.play().then(() => {
-                    let fadeVol = 0;
-                    let fadeInterval = setInterval(() => {
-                        fadeVol += 0.05;
-                        if (fadeVol >= 0.8) { 
-                            bgm.volume = 0.8;
-                            clearInterval(fadeInterval);
-                        } else {
-                            bgm.volume = fadeVol;
-                        }
-                    }, 150);
-                }).catch(err => console.log("BGM 播放被瀏覽器阻擋", err));
-            } catch(e) {}
-        }
-
-
-        // =====================================================================
-        // 核心引擎與視覺渲染 (整合自原本的 part4.html)
-        // =====================================================================
-        let currentPhase = 0; // 0: 未開始, 1: 混沌, 2: 呼喚/心跳, 3: 碎裂, 4: 重生
-        
-        // Three.js 全域變數
-        let scene, camera, renderer, ashParticles, starGalaxy;
-        const particleCount = window.innerWidth < 768 ? 800 : 2500; // 投影幕加大粒子數
-
-        // 畫布
-        const fogCanvas = document.getElementById('fog-canvas');
-        const fogCtx = fogCanvas.getContext('2d');
-        const intCanvas = document.getElementById('interaction-canvas');
-        const intCtx = intCanvas.getContext('2d');
-        const shatterCanvas = document.getElementById('shatter-layer');
-        const shatterCtx = shatterCanvas.getContext('2d');
-
-        // 音訊與動態
-        let heartbeatInterval = null;
-        let fogNoise = [];
-        let touchPoints = [];
-        let isShattered = false;
-
-        // 初始化螢幕尺寸
-        function resizeCanvases() {
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-            
-            fogCanvas.width = w;
-            fogCanvas.height = h;
-            intCanvas.width = w;
-            intCanvas.height = h;
-            shatterCanvas.width = w;
-            shatterCanvas.height = h;
-
-            if (renderer) {
-                renderer.setSize(w, h);
-                camera.aspect = w / h;
-                camera.updateProjectionMatrix();
-            }
-        }
-        window.addEventListener('resize', resizeCanvases);
-
-        // --- 核心 Phase 觸發調度器 (同步影響手機與投影) ---
-        function triggerPhase(phase) {
-            if (phase === currentPhase) return;
-            currentPhase = phase;
-
-            console.log(`[系統進度] 切換至 Phase ${phase}`);
-
-            // 更新導播控制台狀態
-            const stateLabels = ["等待", "1. 混沌灰燼", "2. 共鳴心跳", "3. 碎裂深淵", "4. 星塵新生"];
-            const stateLabel = document.getElementById('director-state-label');
-            if (stateLabel) stateLabel.innerText = stateLabels[phase];
-
-            // 標示控制台當前活動按鈕
-            for (let i = 1; i <= 4; i++) {
-                const btn = document.getElementById(`pbtn-${i}`);
-                if (btn) {
-                    if (i === phase) {
-                        btn.className = "py-2 px-3 rounded bg-cyan-950/80 border border-cyan-400 text-cyan-300 text-left shadow-lg shadow-cyan-500/10";
-                    } else {
-                        btn.className = "py-2 px-3 rounded bg-white/5 border border-white/10 hover:bg-white/10 transition text-left";
-                    }
-                }
-            }
-
-            // 同步播放投影大字幕
-            playSubtitlesForPhase(phase);
-
-            // 手機 UI 與指示切換
-            if (!isProjectionMode) {
-                updateMobileUI(phase);
-            }
-
-            // 特效與聲音驅動
-            switch(phase) {
-                case 1:
-                    // 灰燼迷霧漸強
-                    document.getElementById('vignette').className = "";
-                    stopHeartbeat();
-                    break;
-                case 2:
-                    // 開始共鳴心跳
-                    document.getElementById('vignette').className = "pulse-active";
-                    if (!isMuted) setHeartbeat(1500);
-                    break;
-                case 3:
-                    // 蓄力崩解、準備破碎
-                    document.getElementById('vignette').className = "";
-                    if (!isMuted) setHeartbeat(600); // 劇烈加速心跳
-                    
-                    // 3 秒後自動引爆碎裂效果 (在投影模式下為自動，手機上可由觀眾觸控或自動)
-                    setTimeout(() => {
-                        triggerShatterEffect();
-                    }, 4000);
-                    break;
-                case 4:
-                    // 重生星群
-                    document.getElementById('vignette').className = "";
-                    stopHeartbeat();
-                    triggerRebirth();
-                    break;
-            }
-        }
-
-        // 更新手機模式介面
-        function updateMobileUI(phase) {
-            const topInd = document.getElementById('top-indicator');
-            const titleEl = document.getElementById('phase-title');
-            const descEl = document.getElementById('phase-desc');
-            const touchGuide = document.getElementById('touch-guide');
-
-            topInd.style.opacity = '0';
-            touchGuide.style.opacity = '0';
-
-            setTimeout(() => {
-                if (phase === 1) {
-                    titleEl.innerText = "【 混沌之野 】";
-                    descEl.innerText = "輕觸螢幕，在餘燼迷霧中尋找方向";
-                    topInd.style.opacity = '1';
-                    touchGuide.style.opacity = '0.5';
-                } else if (phase === 2) {
-                    titleEl.innerText = "【 共鳴心弦 】";
-                    descEl.innerText = "心跳正與黑暗產生共振，長按尋求平衡";
-                    topInd.style.opacity = '1';
-                    touchGuide.style.opacity = '0.7';
-                } else if (phase === 3) {
-                    titleEl.innerText = "【 臨界崩碎 】";
-                    descEl.innerText = "蓄力臨界點，用力敲擊螢幕打破桎梏";
-                    topInd.style.opacity = '1';
-                    touchGuide.style.opacity = '1';
-                } else if (phase === 4) {
-                    titleEl.innerText = "【 星塵新生 】";
-                    descEl.innerText = "破碎的迴音化為星群，傾斜手機看見未來";
-                    topInd.style.opacity = '1';
-                    touchGuide.style.opacity = '0';
-                }
-            }, 500);
-        }
-
-        // =====================================================================
-        // THREE.JS 3D 動態引擎 (優化巨幕渲染)
-        // =====================================================================
-        function initThree() {
-            const container = document.getElementById('canvas-container');
-            scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x000000, 0.015);
-
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.z = 40;
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 限制大螢幕解析度防止卡頓
-            container.appendChild(renderer.domElement);
-
-            // 建立灰燼粒子系統
-            const ashGeometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(particleCount * 3);
-            const velocities = [];
-
-            for(let i=0; i<particleCount; i++) {
-                positions[i*3] = (Math.random() - 0.5) * 100;
-                positions[i*3+1] = (Math.random() - 0.5) * 100;
-                positions[i*3+2] = (Math.random() - 0.5) * 100;
-                velocities.push({
-                    x: (Math.random() - 0.5) * 0.05,
-                    y: -(Math.random() * 0.08 + 0.02), // 緩慢向下飄落
-                    z: (Math.random() - 0.5) * 0.05,
-                    rotSpeed: (Math.random() - 0.5) * 0.01
-                });
-            }
-
-            ashGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-            // 精美微發光灰燼紋理
-            const pMaterial = new THREE.PointsMaterial({
-                color: 0xcccccc,
-                size: window.innerWidth < 768 ? 0.35 : 0.5,
-                transparent: true,
-                opacity: 0.7,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
-            });
-
-            ashParticles = new THREE.Points(ashGeometry, pMaterial);
-            scene.add(ashParticles);
-            ashParticles.userData = { velocities: velocities };
-
-            // 建立 Phase 4 的金色新生星塵
-            createGalaxy();
-
-            // 起動循環渲染
-            animate();
-        }
-
-        // 建立星塵星系
-        function createGalaxy() {
-            const starCount = window.innerWidth < 768 ? 1500 : 4000;
-            const galaxyGeo = new THREE.BufferGeometry();
-            const positions = new Float32Array(starCount * 3);
-            const colors = new Float32Array(starCount * 3);
-            
-            const colorPalette = [
-                new THREE.Color(0xffbf00), // 溫暖琥珀
-                new THREE.Color(0xff7700), // 餘燼橘紅
-                new THREE.Color(0x3a86ff), // 寂靜靛藍
-                new THREE.Color(0x8338ec)  // 迴音神祕紫
-            ];
-
-            for(let i=0; i<starCount; i++) {
-                // 漩渦星系分佈
-                const r = Math.pow(Math.random(), 2.5) * 45 + 0.5;
-                const theta = Math.random() * Math.PI * 2 + r * 0.15;
-                const phi = (Math.random() - 0.5) * 0.2;
-
-                positions[i*3] = Math.cos(theta) * r;
-                positions[i*3+1] = Math.sin(phi) * r * 0.5;
-                positions[i*3+2] = Math.sin(theta) * r;
-
-                // 隨機調色盤
-                const clr = colorPalette[Math.floor(Math.random() * colorPalette.length)];
-                colors[i*3] = clr.r;
-                colors[i*3+1] = clr.g;
-                colors[i*3+2] = clr.b;
-            }
-
-            galaxyGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            galaxyGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-            const starMat = new THREE.PointsMaterial({
-                size: 0.28,
-                vertexColors: true,
-                transparent: true,
-                opacity: 0, // 初始隱藏
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
-            });
-
-            starGalaxy = new THREE.Points(galaxyGeo, starMat);
-            scene.add(starGalaxy);
-        }
-
-        // =====================================================================
-        // CANVAS 2D 動態：迷霧、水波與螢幕碎裂
-        // =====================================================================
-        function initFog() {
-            // 建立迷霧噪點分佈
-            for(let i=0; i<40; i++) {
-                fogNoise.push({
-                    x: Math.random() * fogCanvas.width,
-                    y: Math.random() * fogCanvas.height,
-                    vx: (Math.random() - 0.5) * 0.8,
-                    vy: (Math.random() - 0.5) * 0.4,
-                    r: Math.random() * 150 + 150,
-                    alpha: Math.random() * 0.15 + 0.05
-                });
-            }
-        }
-
-        // 渲染迷霧
-        function drawFog() {
-            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
-            
-            // 根據階段改變迷霧主色調
-            let fogColor = "25, 25, 30"; // 混沌灰
-            if (currentPhase === 2) fogColor = "40, 15, 15"; // 血色共鳴
-            if (currentPhase === 4) fogColor = "15, 10, 35"; // 新生星空
-
-            fogNoise.forEach(f => {
-                f.x += f.vx;
-                f.y += f.vy;
-
-                // 邊界回彈
-                if (f.x < -f.r) f.x = fogCanvas.width + f.r;
-                if (f.x > fogCanvas.width + f.r) f.x = -f.r;
-                if (f.y < -f.r) f.y = fogCanvas.height + f.r;
-                if (f.y > fogCanvas.height + f.r) f.y = -f.r;
-
-                const grad = fogCtx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
-                grad.addColorStop(0, `rgba(${fogColor}, ${f.alpha})`);
-                grad.addColorStop(1, 'rgba(0,0,0,0)');
-                
-                fogCtx.fillStyle = grad;
-                fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
-            });
-        }
-
-        // 手持擦拭迷霧與觸控迴音 (手機模式功能，投影模式則演算法自動隨機泛起漣漪)
-        function drawInteraction() {
-            intCtx.clearRect(0, 0, intCanvas.width, intCanvas.height);
-
-            // 如果是投影模式，隨機在螢幕上泛起浪漫微光漣漪
-            if (isProjectionMode && Math.random() < 0.02) {
-                touchPoints.push({
-                    x: Math.random() * intCanvas.width,
-                    y: Math.random() * intCanvas.height,
-                    r: 5,
-                    maxR: Math.random() * 150 + 100,
-                    alpha: 0.6,
-                    color: currentPhase === 4 ? "131, 56, 236" : "255, 255, 255"
-                });
-            }
-
-            for(let i = touchPoints.length - 1; i >= 0; i--) {
-                let p = touchPoints[i];
-                p.r += (p.maxR - p.r) * 0.05;
-                p.alpha -= 0.015;
-
-                if (p.alpha <= 0) {
-                    touchPoints.splice(i, 1);
-                    continue;
-                }
-
-                intCtx.save();
-                intCtx.beginPath();
-                intCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                
-                // 放射狀發光漸層
-                const radGrad = intCtx.createRadialGradient(p.x, p.y, p.r * 0.2, p.x, p.y, p.r);
-                radGrad.addColorStop(0, `rgba(${p.color || "255, 255, 255"}, ${p.alpha * 0.8})`);
-                radGrad.addColorStop(0.4, `rgba(${p.color || "255, 255, 255"}, ${p.alpha * 0.2})`);
-                radGrad.addColorStop(1, 'rgba(0,0,0,0)');
-                
-                intCtx.fillStyle = radGrad;
-                intCtx.fill();
-                intCtx.restore();
-            }
-        }
-
-        // =====================================================================
-        // PHASE 3-4: 劇場級碎裂與重生物理引擎
-        // =====================================================================
-        let shatterParticles = [];
-        
-        function triggerShatterEffect() {
-            if (isSshattered) return;
-            isSshattered = true;
-            shatterCanvas.style.display = 'block';
-
-            // 1. 強烈白閃光
-            const flash = document.getElementById('flash');
-            flash.style.opacity = '1';
-            
-            // 2. 播碎裂聲
-            if (!isMuted) {
-                playShatterSynth();
-            }
-
-            // 3. 建立網格物理碎片
-            const cols = 8;
-            const rows = 6;
-            const cellW = shatterCanvas.width / cols;
-            const cellH = shatterCanvas.height / rows;
-
-            for(let r=0; r<rows; r++) {
-                for(let c=0; c<cols; c++) {
-                    const x = c * cellW;
-                    const y = r * cellH;
-                    shatterParticles.push({
-                        origX: x, origY: y,
-                        x: x, y: y,
-                        w: cellW, h: cellH,
-                        vx: (c - cols/2) * 2 + (Math.random() - 0.5) * 5,
-                        vy: (r - rows/2) * 2 + (Math.random() - 0.5) * 5 - 5, // 重力飛散
-                        rot: 0,
-                        rotV: (Math.random() - 0.5) * 0.1,
-                        alpha: 1.0
-                    });
-                }
-            }
-
-            // 4. 白閃光漸漸淡出，進入最終暗幕準備
-            setTimeout(() => {
-                flash.style.transition = 'opacity 1.5s ease';
-                flash.style.opacity = '0';
-            }, 100);
-
-            // 5. 自動推進至 Phase 4 (星塵重生)
-            setTimeout(() => {
-                triggerPhase(4);
-            }, 3000);
-        }
-
-        let isSshattered = false;
-        function drawShatter() {
-            if (!isSshattered) return;
-            shatterCtx.clearRect(0, 0, shatterCanvas.width, shatterCanvas.height);
-
-            let activeCount = 0;
-            shatterParticles.forEach(p => {
-                p.x += p.vx;
-                p.y += p.vy;
-                p.vy += 0.25; // 模擬重力
-                p.rot += p.rotV;
-                p.alpha -= 0.012; // 碎片消逝
-
-                if (p.alpha > 0) {
-                    activeCount++;
-                    shatterCtx.save();
-                    shatterCtx.translate(p.x + p.w/2, p.y + p.h/2);
-                    shatterCtx.rotate(p.rot);
-                    
-                    // 繪製半透明碎裂玻璃
-                    shatterCtx.fillStyle = `rgba(255, 255, 255, ${p.alpha * 0.15})`;
-                    shatterCtx.strokeStyle = `rgba(255, 255, 255, ${p.alpha * 0.4})`;
-                    shatterCtx.lineWidth = 1.5;
-                    
-                    shatterCtx.beginPath();
-                    shatterCtx.rect(-p.w/2, -p.h/2, p.w, p.h);
-                    shatterCtx.fill();
-                    shatterCtx.stroke();
-                    shatterCtx.restore();
-                }
-            });
-
-            if (activeCount === 0) {
-                shatterCanvas.style.display = 'none';
-            }
-        }
-
-        // 觸發星群綻放與緩慢上浮
-        function triggerRebirth() {
-            // 星群浮現
-            let fadeStars = 0;
-            let fadeInterval = setInterval(() => {
-                fadeStars += 0.02;
-                if (fadeStars >= 1) {
-                    starGalaxy.material.opacity = 1;
-                    clearInterval(fadeInterval);
-                } else {
-                    starGalaxy.material.opacity = fadeStars;
-                }
-            }, 50);
-
-            // 大幕金紫發光漸現
-            const finale = document.getElementById('finale-layer');
-            finale.style.opacity = '1';
-
-            // 灰燼粒子轉成金色並加速上揚
-            const positions = ashParticles.geometry.attributes.position.array;
-            const velocities = ashParticles.userData.velocities;
-            
-            // 緩慢將所有灰燼推向上方
-            ashParticles.material.color.setHex(0xffaa00);
-            velocities.forEach(v => {
-                v.y = Math.abs(v.y) * 1.5; // 全面朝上浮
-                v.x *= 0.5;
-            });
-        }
-
-
-        // =====================================================================
-        // TONE.JS 音效模組 (巨幕立體聲劇場優化)
-        // =====================================================================
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const sceneContainer = document.getElementById('scene-container');
+        const bgm = document.getElementById('bgm');
         let heartSynth = null;
-        let shatterSynth = null;
+        
+        // --- WebGL 系統變數 ---
+        let scene, camera, renderer;
+        let photoMeshes = [];
+        const TOTAL_PHOTOS = 800; // 超級多的照片數量 (得益於 WebGL)
+
+        // 白底壓迫風格的文字腳本
+        const projectionScript = [
+            "全部暴露在\n光天化日之下",
+            "無所遁形的記憶",
+            "我們是體制下的殘影",
+            "被困在白色的深淵",
+            "無盡的飄零",
+            "凝視，不曾停止"
+        ];
+        let currentSubtitleIdx = 0;
+        let textAnimationTl = null;
+
+        // 將底圖、陰影、黑白濾鏡預先「烤」進 Texture 中，大幅節省 GPU 計算資源
+        function bakeTexture(base64Src) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // 設定高解析度畫布
+                    const w = 240; 
+                    const h = 336;
+                    const padding = 40;
+                    canvas.width = w + padding * 2;
+                    canvas.height = h + padding * 2;
+
+                    // 1. 繪製重度陰影
+                    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                    ctx.shadowBlur = 25;
+                    ctx.shadowOffsetX = 12;
+                    ctx.shadowOffsetY = 12;
+                    ctx.fillStyle = '#0a0a0a'; 
+                    ctx.fillRect(padding, padding, w, h);
+
+                    // 清除陰影設定避免影響後續繪製
+                    ctx.shadowColor = 'transparent';
+
+                    // 2. 繪製白色邊界(拍立得感)
+                    const bw = 8;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(padding + bw, padding + bw, w - bw*2, h - bw*2);
+                    
+                    // 3. 繪製微黑白全彩照片 (加入 80% 灰階，保留一點點色彩與立體感)
+                    ctx.filter = 'grayscale(80%) contrast(110%) brightness(1.05)'; 
+                    
+                    // 計算 object-fit: cover 的裁切比例，確保人臉絕不變形
+                    const targetW = w - bw*2;
+                    const targetH = h - bw*2;
+                    const imgRatio = img.width / img.height;
+                    const targetRatio = targetW / targetH;
+                    let sx, sy, sw, sh;
+                    
+                    if (imgRatio > targetRatio) {
+                        // 圖片較寬，裁切左右
+                        sh = img.height;
+                        sw = sh * targetRatio;
+                        sx = (img.width - sw) / 2;
+                        sy = 0;
+                    } else {
+                        // 圖片較高，裁切上下
+                        sw = img.width;
+                        sh = sw / targetRatio;
+                        sx = 0;
+                        sy = (img.height - sh) / 2;
+                    }
+                    
+                    ctx.drawImage(img, sx, sy, sw, sh, padding + bw, padding + bw, targetW, targetH);
+
+                    // 4. 外圍畫上細黑線
+                    ctx.filter = 'none';
+                    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(padding, padding, w, h);
+
+                    const texture = new THREE.CanvasTexture(canvas);
+                    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                    resolve(texture);
+                };
+                img.src = base64Src;
+            });
+        }
+
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf8f8f8);
+            // 讓遠處的照片隱沒在純白的迷霧中，增加空間深度感
+            // (調降 Fog 參數從 0.0006 改為 0.0004，讓遠處的臉也能看得更清楚)
+            scene.fog = new THREE.FogExp2(0xf8f8f8, 0.0004);
+
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 4000);
+            camera.position.z = 0; // 相機位於原點
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 優化視網膜螢幕效能
+            sceneContainer.appendChild(renderer.domElement);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        async function fetchRecords() {
+            try {
+                // 先初始化 WebGL 渲染器
+                initThreeJS();
+
+                const querySnapshot = await getDocs(collection(db, "archived_subjects"));
+                let rawImages = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.imageData) rawImages.push(data.imageData);
+                });
+
+                // 過濾出不重複的圖片以節省記憶體
+                const uniqueImages = [...new Set(rawImages)];
+                if(uniqueImages.length === 0) throw new Error("無可用照片");
+
+                // 將所有獨特圖片轉換為高效能 Texture
+                const textures = await Promise.all(uniqueImages.map(bakeTexture));
+
+                // 大量生成 3D 網格 (Mesh)
+                const geometry = new THREE.PlaneGeometry(60, 84); // 基礎尺寸
+                const materials = textures.map(tex => new THREE.MeshBasicMaterial({ 
+                    map: tex, 
+                    transparent: true 
+                }));
+
+                for (let i = 0; i < TOTAL_PHOTOS; i++) {
+                    const mat = materials[Math.floor(Math.random() * materials.length)];
+                    const mesh = new THREE.Mesh(geometry, mat);
+                    
+                    // 將照片散佈在一個廣大的 3D 隧道中
+                    mesh.position.x = THREE.MathUtils.randFloatSpread(1800);
+                    mesh.position.y = THREE.MathUtils.randFloatSpread(1200);
+                    mesh.position.z = THREE.MathUtils.randFloatSpread(3000) - 1000; 
+
+                    // 【修改重點 1】取消完全隨機的翻轉，改為永遠「正面朝向觀眾」
+                    // 只給予極微小的隨機傾斜(約正負 5 度)，保留真實相紙在空間中的立體感
+                    mesh.rotation.x = THREE.MathUtils.randFloatSpread(0.1);
+                    mesh.rotation.y = THREE.MathUtils.randFloatSpread(0.1);
+                    mesh.rotation.z = THREE.MathUtils.randFloatSpread(0.05);
+
+                    // 【修改重點 2】拔除旋轉速度 (rx, ry, rz)，並降低側向飄動 (vx, vy)
+                    // 讓視線更容易追蹤迎面而來的照片
+                    mesh.userData = {
+                        vx: THREE.MathUtils.randFloatSpread(0.2), // 降低側漂
+                        vy: THREE.MathUtils.randFloatSpread(0.2), // 降低側漂
+                        vz: Math.random() * 2.5 + 1.5 // 穩定向鏡頭飛來
+                    };
+
+                    scene.add(mesh);
+                    photoMeshes.push(mesh);
+                }
+
+                const statusEl = document.getElementById('data-status');
+                statusEl.innerText = "[ 檔案陣列已就緒 ]";
+                statusEl.className = "text-[10px] text-green-600 mt-8 tracking-wider font-bold";
+                
+                document.getElementById('standby-screen').addEventListener('click', igniteSystem);
+                
+            } catch (error) {
+                console.error("讀取失敗：", error);
+                document.getElementById('data-status').innerText = "[ 嚴重錯誤：資料庫連線失敗 ]";
+                document.getElementById('data-status').style.color = "red";
+            }
+        }
+        
+        fetchRecords();
+
+        function igniteSystem() {
+            const standby = document.getElementById('standby-screen');
+            standby.style.opacity = '0';
+            standby.style.pointerEvents = 'none';
+            
+            Tone.start();
+            initToneAudio();
+            bgm.volume = 0;
+            bgm.play().catch(e => console.log("BGM Error:", e));
+            gsap.to(bgm, { volume: 0.8, duration: 4 });
+
+            setTimeout(() => {
+                standby.remove();
+                startSubtitles();
+                animateLoop(); // 啟動 3D 渲染迴圈
+            }, 1000);
+        }
 
         function initToneAudio() {
             try {
-                // 1. 心跳合成器
+                const reverb = new Tone.Reverb({ decay: 5, wet: 0.6 }).toDestination();
                 heartSynth = new Tone.MembraneSynth({
-                    envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.2 },
+                    envelope: { attack: 0.02, decay: 0.6, sustain: 0, release: 0.3 },
                     oscillator: { type: "sine" }
-                }).toDestination();
-                heartSynth.volume.value = -3;
+                }).connect(reverb);
+                heartSynth.volume.value = -1;
 
-                // 2. 玻璃粉碎合成器
-                shatterSynth = new Tone.NoiseSynth({
-                    noise: { type: 'white' },
-                    envelope: { attack: 0.001, decay: 1.5, sustain: 0, release: 1.0 }
-                }).toDestination();
-                shatterSynth.volume.value = -8;
-            } catch(e) {
-                console.warn("音訊模組加載受限:", e);
-            }
-        }
-
-        function setHeartbeat(ms) {
-            stopHeartbeat();
-            if (isMuted) return;
-
-            if (!heartSynth) initToneAudio();
-
-            heartbeatInterval = setInterval(() => {
-                try {
-                    // 雙重砰砰聲 (模擬心臟收縮/舒張期)
+                setInterval(() => {
                     heartSynth.triggerAttackRelease("C1", "8n");
-                    setTimeout(() => {
-                        if (currentPhase !== 0) {
-                            heartSynth.triggerAttackRelease("A0", "8n", undefined, 0.6);
-                        }
-                    }, 240);
-                } catch(e){}
-            }, ms);
+                }, 1800); 
+            } catch(e) {}
         }
 
-        function stopHeartbeat() {
-            if (heartbeatInterval) {
-                clearInterval(heartbeatInterval);
-                heartbeatInterval = null;
-            }
-        }
+        // WebGL 每秒 60 幀運算，徹底解決卡頓
+        function animateLoop() {
+            requestAnimationFrame(animateLoop);
 
-        function playShatterSynth() {
-            if (isMuted) return;
-            try {
-                if (!shatterSynth) initToneAudio();
-                shatterSynth.triggerAttackRelease("1s");
+            // 【修改重點 3】讓整個空間的搖晃感再減弱一半，避免暈眩與失焦
+            camera.rotation.z = Math.sin(Date.now() * 0.0003) * 0.02;
+            camera.rotation.x = Math.cos(Date.now() * 0.0002) * 0.02;
+
+            photoMeshes.forEach(mesh => {
+                // 應用速度
+                mesh.position.x += mesh.userData.vx;
+                mesh.position.y += mesh.userData.vy;
+                mesh.position.z += mesh.userData.vz; // 向鏡頭逼近
                 
-                // 加一個劇烈金屬感震動
-                const metal = new Tone.MetalSynth().toDestination();
-                metal.volume.value = -12;
-                metal.triggerAttackRelease("C3", "2n");
-            } catch(e){}
-        }
+                // (移除了原本這裡的 mesh.rotation 更新，讓照片不再無意義旋轉)
 
-        // =====================================================================
-        // 主遊戲與渲染循環
-        // =====================================================================
-        let lastTime = 0;
-        let frameCount = 0;
-        let lastFpsUpdate = 0;
-
-        function animate(timestamp) {
-            requestAnimationFrame(animate);
-
-            // FPS 計數器 (供導播確認系統效能)
-            frameCount++;
-            if (timestamp - lastFpsUpdate >= 1000) {
-                const fpsEl = document.getElementById('director-fps');
-                if (fpsEl) fpsEl.innerText = `FPS: ${frameCount}`;
-                frameCount = 0;
-                lastFpsUpdate = timestamp;
-            }
-
-            // --- Three.js 灰燼物理更新 ---
-            if (ashParticles) {
-                const positions = ashParticles.geometry.attributes.position.array;
-                const velocities = ashParticles.userData.velocities;
-
-                for(let i=0; i<particleCount; i++) {
-                    positions[i*3] += velocities[i].x;
-                    positions[i*3+1] += velocities[i].y;
-                    positions[i*3+2] += velocities[i].z;
-
-                    // 循環浮沉
-                    if (positions[i*3+1] < -50 && currentPhase !== 4) {
-                        positions[i*3+1] = 50;
-                    } else if (positions[i*3+1] > 50 && currentPhase === 4) {
-                        positions[i*3+1] = -50;
-                    }
+                // 如果照片飛過相機背後，將它瞬間傳送到遠方白霧中重新飛來
+                if (mesh.position.z > 200) {
+                    mesh.position.z = -3000;
+                    mesh.position.x = THREE.MathUtils.randFloatSpread(1800);
+                    mesh.position.y = THREE.MathUtils.randFloatSpread(1200);
                 }
-                ashParticles.geometry.attributes.position.needsUpdate = true;
-                ashParticles.rotation.y += 0.0008;
-            }
-
-            // --- Three.js 新生星辰星雲更新 ---
-            if (starGalaxy && currentPhase === 4) {
-                starGalaxy.rotation.y += 0.002; // 星雲自轉
-                starGalaxy.rotation.x += 0.0005;
-            }
-
-            // --- 2D 動態更新 ---
-            drawFog();
-            drawInteraction();
-            drawShatter();
+            });
 
             renderer.render(scene, camera);
         }
 
-        // 手機模式下的觸控交互
-        function setupMobileInteractions() {
-            const handleTouch = (e) => {
-                if (isProjectionMode) return;
+        function startSubtitles() {
+            const textContent = document.getElementById('text-content');
+            
+            const animateNextSentence = () => {
+                if (currentSubtitleIdx >= projectionScript.length) {
+                    currentSubtitleIdx = 0; 
+                }
                 
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-                // 產生漣漪
-                touchPoints.push({
-                    x: clientX,
-                    y: clientY,
-                    r: 5,
-                    maxR: 120,
-                    alpha: 0.8,
-                    color: currentPhase === 2 ? "255, 100, 100" : "255, 255, 255"
+                textContent.innerText = projectionScript[currentSubtitleIdx];
+                
+                if(textAnimationTl) textAnimationTl.kill();
+                textAnimationTl = gsap.timeline({
+                    onComplete: () => {
+                        currentSubtitleIdx++;
+                        setTimeout(animateNextSentence, 2000); 
+                    }
                 });
 
-                // Phase 3 觸控點擊集氣蓄力加速碎裂
-                if (currentPhase === 3) {
-                    playShatterSynth();
-                    triggerShatterEffect();
-                }
+                textAnimationTl.fromTo(textContent, 
+                    { opacity: 0, scale: 0.6, filter: "blur(20px)" },
+                    { opacity: 1, scale: 1, filter: "blur(0px)", duration: 4, ease: "power2.out" }
+                )
+                .to(textContent, { scale: 1.15, duration: 4, ease: "none" })
+                .to(textContent, { 
+                    scale: 2.5, 
+                    opacity: 0, 
+                    filter: "blur(15px)", 
+                    duration: 3.5, 
+                    ease: "power2.in" 
+                });
             };
 
-            window.addEventListener('touchstart', handleTouch, { passive: true });
-            window.addEventListener('mousedown', handleTouch);
+            setTimeout(animateNextSentence, 2000);
         }
 
-        // 初始化
-        window.onload = function() {
-            resizeCanvases();
-            initThree();
-            initFog();
-            setupMobileInteractions();
-            initToneAudio();
-
-            // 手機啟動按鈕綁定 (原本手機模式的邏輯)
-            document.getElementById('start-btn').addEventListener('click', () => {
-                document.getElementById('start-btn').style.opacity = '0.5';
-                document.getElementById('start-btn').style.pointerEvents = 'none';
-                
-                Tone.start();
-                playBGM();
-                triggerPhase(1);
-            });
-        };
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen();
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+        });
     </script>
 </body>
 </html>
