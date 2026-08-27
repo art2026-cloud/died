@@ -263,7 +263,7 @@
                 const textures = await Promise.all(uniqueImages.map(bakeTexture));
 
                 // 大量生成 3D 網格 (Mesh)
-                const geometry = new THREE.PlaneGeometry(60, 84); // 基礎尺寸
+                const geometry = new THREE.PlaneGeometry(100, 124); // 基礎尺寸
                 const materials = textures.map(tex => new THREE.MeshBasicMaterial({ 
                     map: tex, 
                     transparent: true 
